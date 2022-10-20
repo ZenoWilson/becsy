@@ -68,6 +68,24 @@ class StartTwoCoroutines extends System {
   }
 }
 
+class StartCoroutineTwice extends System {
+  turn = 0;
+  declare deco: (routine: Coroutine) => void;
+
+  execute() {
+    switch (this.turn++) {
+      case 0: this.deco(this.start(this.fn)); break;
+      case 1: this.deco(this.start(this.fn)); break;
+    }
+  }
+
+  *fn() {
+    counter += 1;
+    yield;
+    counter += 1;
+  }
+}
+
 async function createWorld(...systems: SystemType<System>[] | any): Promise<World> {
   return World.create({
     maxEntities: 100, defaultComponentStorage: 'sparse', defs: systems
@@ -389,6 +407,22 @@ describe('test cancelling', () => {
     expect(counter).toBe(11);
     await world.execute();
     expect(counter).toBe(21);
+  });
+
+  it('cancels a scoped coroutine if the same coroutine with same scope is invoked again', async () => {
+    let entity: Entity;
+    const world = await createWorld(StartCoroutineTwice, {
+      deco: (co: Coroutine) => co.scope(entity).cancelIfCoroutineStarted(),
+    });
+    world.build(sys => {
+      entity = sys.createEntity().hold();  // eslint-disable-line @typescript-eslint/no-unused-vars
+    });
+    await world.execute();
+    expect(counter).toBe(1);
+    await world.execute();
+    expect(counter).toBe(2);
+    await world.execute();
+    expect(counter).toBe(3);
   });
 
   it('does not cancel a scoped coroutine if another coroutine without scope starts', async () => {
